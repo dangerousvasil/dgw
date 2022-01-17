@@ -35,13 +35,13 @@ nullable_go_type = "bool"
 
 [smallint]
 db_types = ["smallint"]
-notnull_go_type = "int16"
-nullable_go_type = "sql.NullInt64"
+notnull_go_type = "int"
+nullable_go_type = "sql.NullInt32"
 
 [integer]
 db_types = ["integer"]
-notnull_go_type = "int"
-nullable_go_type = "sql.NullInt64"
+notnull_go_type = "int64"
+nullable_go_type = "sql.NullInt32"
 
 [bigint]
 db_types = ["bigint"]
@@ -50,7 +50,7 @@ nullable_go_type = "sql.NullInt64"
 
 [smallserial]
 db_types = ["smallserial"]
-notnull_go_type = "uint16"
+notnull_go_type = "uint"
 nullable_go_type = "sql.NullInt64"
 
 [serial]
@@ -70,8 +70,8 @@ nullable_go_type = "sql.NullFloat64"
 
 [bytea]
 db_types = ["bytea"]
-notnull_go_type = "byte"
-nullable_go_type = "byte"
+notnull_go_type = "[]byte"
+nullable_go_type = "[]byte"
 
 [json]
 db_types = ["json", "jsonb"]
@@ -87,6 +87,11 @@ nullable_go_type = "[]byte"
 db_types = ["interval"]
 notnull_go_type = "time.Duration"
 nullable_go_type = "*time.Duration"
+
+[bit]
+db_types = ["bit"]
+notnull_go_type = "string"
+nullable_go_type = "sql.NullString"
 
 [default]
 db_types = ["*"]

@@ -1,4 +1,6 @@
 // go:generate go-bindata -o bindata.go template mapconfig
+//go:generate go get golang.org/x/tools/cmd/goimports
+
 package main
 
 import (
@@ -32,15 +34,6 @@ func OpenDB(connStr string) (*sql.DB, error) {
 	}
 	return conn, nil
 }
-
-const queryInterface = `
-// Queryer database/sql compatible query interface
-type Queryer interface {
-	Exec(string, ...interface{}) (sql.Result, error)
-	Query(string, ...interface{}) (*sql.Rows, error)
-	QueryRow(string, ...interface{}) *sql.Row
-}
-`
 
 const pgLoadColumnDef = `
 SELECT
@@ -386,4 +379,68 @@ func PgCreateStruct(
 		}
 	}
 	return src, nil
+}
+
+type PgOrmBuilder struct {
+	DB          Queryer
+	Schema      string
+	TypeMapPath string
+	PkgName     string
+	ExTbls      []string
+}
+
+func NewPgOrmBuilder(
+	db Queryer, schema, typeMapPath, pkgName string, exTbls []string) PgOrmBuilder {
+	pgBuilder := PgOrmBuilder{}
+	pgBuilder.DB = db
+	pgBuilder.Schema = schema
+	pgBuilder.TypeMapPath = typeMapPath
+	pgBuilder.PkgName = pkgName
+	pgBuilder.ExTbls = exTbls
+	return pgBuilder
+}
+
+func (b *PgOrmBuilder) pkgDef(s []byte) []byte {
+	return append([]byte(fmt.Sprintf("package %s\n\n", b.PkgName)), s...)
+}
+
+func (b *PgOrmBuilder) GetPgStruct() (structs []*Struct, err error) {
+
+	tbls, err := PgLoadTableDef(b.DB, b.Schema)
+	if err != nil {
+		return structs, errors.Wrap(err, "faield to load table definitions")
+	}
+	cfg := &PgTypeMapConfig{}
+	if b.TypeMapPath == "" {
+		if _, err := toml.Decode(typeMap, cfg); err != nil {
+			return structs, errors.Wrap(err, "faield to read type map")
+		}
+	} else {
+		if _, err := toml.DecodeFile(b.TypeMapPath, cfg); err != nil {
+			return structs, errors.Wrap(err, fmt.Sprintf("failed to decode type map file %s", b.TypeMapPath))
+		}
+	}
+	for _, tbl := range tbls {
+		if contains(tbl.Name, b.ExTbls) {
+			continue
+		}
+		st, err := PgTableToStruct(tbl, cfg, autoGenKeyCfg)
+		if err != nil {
+			return structs, errors.Wrap(err, "failed to convert table definition to struct")
+		}
+		structs = append(structs, st)
+	}
+	return
+}
+
+func (b *PgOrmBuilder) RenderPgCustomTmpl(st *Struct, customTmpl string) ([]byte, error) {
+	tmpl, err := ioutil.ReadFile(customTmpl)
+	if err != nil {
+		return nil, err
+	}
+	s, err := PgExecuteCustomTmpl(&StructTmpl{Struct: st}, string(tmpl))
+	if err != nil {
+		return nil, errors.Wrap(err, "PgExecuteCustomTmpl failed")
+	}
+	return b.pkgDef(s), err
 }

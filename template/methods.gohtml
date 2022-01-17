@@ -1,0 +1,398 @@
+// {{ .Struct.Name }} represents {{ .Struct.Table.Schema }}.{{ .Struct.Table.Name }}
+// AutoGenPk: {{ .Struct.Table.AutoGenPk }}
+type {{ .Struct.Name }} struct {
+{{- range .Struct.Fields }}
+	{{ .Name }} {{ .Type }} `db:"{{ .Column.Name }}" json:"{{ .Column.Name }}"` // {{ .Column.Name }} PK: {{ .Column.IsPrimaryKey }}
+{{- end }}
+}
+
+func Get{{ .Struct.Name }}TableName() string {
+    return `{{ .Struct.Table.Schema }}.{{ .Struct.Table.Name }}`
+}
+
+// {{ .Struct.Name }}Builder Compose you query
+type {{ .Struct.Name }}Builder struct {
+    db           Queryer
+    Criteria     CriteriaInterface
+    Order        []OrderByInterface
+    Limit        LimitOffsetInterface
+    Select       map[string]string
+    columns      map[string]bool
+    iColumn      map[int]string
+    Parameters   map[string]interface{}
+    FieldModification     map[string]string
+}
+
+// New{{ .Struct.Name }}Builder Create compose you query
+func New{{ .Struct.Name }}Builder(db Queryer) *{{ .Struct.Name }}Builder {
+    t := {{ .Struct.Name }}Builder{db: db}
+    // check for exist column
+    t.columns = {{ createMapFields .Struct }}
+    // all columns
+    t.iColumn = {{ createMapIndexFields .Struct }}
+
+    return &t
+}
+
+// SetCriteria criteria for methods ByCriteria
+func (t *{{ .Struct.Name }}Builder) SetCriteria(criteria CriteriaInterface) *{{ .Struct.Name }}Builder {
+    t.Criteria = criteria
+    return t
+}
+
+func (t *{{ .Struct.Name }}Builder) GetCriteria() CriteriaInterface {
+    return t.Criteria
+}
+
+// SetOrder set order for query
+func (t *{{ .Struct.Name }}Builder) SetOrder(order... OrderByInterface) *{{ .Struct.Name }}Builder {
+    t.Order = order
+    return t
+}
+
+func (t *{{ .Struct.Name }}Builder) GetOrder() []OrderByInterface {
+    return t.Order
+}
+
+// SetParameters additional parameters for query, if you use some func this additional parameter decrypt(field, $1 , 'aes')
+func (t *{{ .Struct.Name }}Builder) SetParameters(parameters map[string]interface{}) *{{ .Struct.Name }}Builder {
+    t.Parameters = parameters
+    return t
+}
+
+func (t *{{ .Struct.Name }}Builder) GetParameters() map[string]interface{} {
+    return  t.Parameters
+}
+
+// SetLimit set limit offset for query
+func (t *{{ .Struct.Name }}Builder) SetLimit(limit LimitOffsetInterface) *{{ .Struct.Name }}Builder {
+    t.Limit = limit
+    return t
+}
+
+func (t *{{ .Struct.Name }}Builder) GetLimit() LimitOffsetInterface {
+    return t.Limit
+}
+
+// SetSelect set map of [filed] => rawSelect for modification selected values
+func (t *{{ .Struct.Name }}Builder) SetSelect(selectFields map[string]string) *{{ .Struct.Name }}Builder {
+    t.Select = selectFields
+    return t
+}
+
+func (t *{{ .Struct.Name }}Builder) GetSelect() map[string]string {
+    return t.Select
+}
+
+
+// SetFieldModification set map of [filed] => raw string for modification inserted or updated values
+func (t *{{ .Struct.Name }}Builder) SetFieldModification(fieldsMod map[string]string) *{{ .Struct.Name }}Builder {
+    t.FieldModification = fieldsMod
+    return t
+}
+
+func (t *{{ .Struct.Name }}Builder) GetFieldModification() map[string]string {
+    return t.FieldModification
+}
+
+
+// Create inserts the {{ .Struct.Name }} to the database.
+func (t *{{ .Struct.Name }}Builder) Create(row *{{ .Struct.Name }}) error {
+    returning, err := t.db.NamedQuery(`{{ createInsertSQL .Struct }}`, t.BuildParameters(row))
+
+    if err != nil {
+        return errors.Wrap(err, "failed to insert {{ .Struct.Table.Name }}")
+    }
+    defer returning.Close()
+    if returning.Next() {
+        return returning.StructScan(row)
+    }
+    return errors.Wrap(returning.Err(), "failed to insert {{ .Struct.Table.Name }}")
+}
+
+// Update the {{ .Struct.Name }} to the database.
+func (t *{{ .Struct.Name }}Builder) Update(row *{{ .Struct.Name }}) (int64, error) {
+    var rowsAffected int64
+    {{- if .Struct.Table.PrimaryKeys }}
+        res, err := t.db.NamedExec(`{{ createUpdateSQL .Struct }}`, t.BuildParameters(row))
+        if err != nil {
+            return rowsAffected, errors.Wrap(err, "failed to update {{ .Struct.Table.Name }}")
+        }
+        rowsAffected, err = res.RowsAffected()
+    {{- else }}
+        err := errors.New( "no primary key for this table {{ .Struct.Table.Name }}")
+    {{- end }}
+    if err != nil {
+        return rowsAffected, errors.Wrap(err, "failed to update {{ .Struct.Table.Name }}")
+    }
+    return rowsAffected, nil
+}
+
+
+// {{ .Struct.Name }} GetByPk select the {{ .Struct.Name }} from the database.
+func (t *{{ .Struct.Name }}Builder) GetByPk({{ createSelectByPkFuncParams .Struct }}) (*{{ .Struct.Name }}, error) {
+    criteria := NewCriteria()
+    {{ criteriaAddPkCriterion .Struct }}
+    t.SetCriteria(criteria)
+
+    rows,err := t.ListByCriteria()
+    if err != nil {
+        return nil, errors.Wrap(err, "failed to select {{ .Struct.Table.Name }}")
+    }
+
+    if len(rows) > 1 {
+        return nil, errors.Wrap(err, "multiple rows by primary keys {{ .Struct.Table.Name }}")
+    }
+
+    if len(rows) == 1 {
+        model := rows[0]
+        return &model,nil
+    }
+
+    return nil, nil
+}
+
+// DeleteByPk delete the {{ .Struct.Name }} from the database.
+func (t *{{ .Struct.Name }}Builder) DeleteByPk({{ createSelectByPkFuncParams .Struct }}) (int64, error) {
+    criteria := NewCriteria()
+    {{ criteriaAddPkCriterion .Struct }}
+    t.SetCriteria(criteria)
+
+    affectedRows, err := t.DeleteByCriteria()
+    if err != nil {
+        return 0, errors.Wrap(err, "failed to select {{ .Struct.Table.Name }}")
+    }
+
+    return affectedRows, nil
+}
+
+// List  select the all {{ .Struct.Name }} from the database.
+func (t *{{ .Struct.Name }}Builder) List() ([]{{ .Struct.Name }}, error) {
+    var err error
+    orderBy, err := t.BuildOrderBy()
+    if err != nil {
+        return nil, errors.Wrap(err, "failed to select {{ .Struct.Table.Name }}")
+    }
+    var r []{{ .Struct.Name }}
+    err = t.db.Select(&r,`SELECT `+t.BuildSqlSelect()+`{{ createFrom .Struct }} `+orderBy+t.BuildLimitOffset())
+	if err != nil {
+        return nil, errors.Wrap(err, "failed to select {{ .Struct.Table.Name }}")
+	}
+	return r, nil
+}
+
+// ListByCriteria select the {{ .Struct.Name }} by Criteria from the database.
+func (t *{{ .Struct.Name }}Builder)  ListByCriteria () ([]{{ .Struct.Name }}, error) {
+    if  t.GetCriteria() == nil || len(t.GetCriteria().GetCriteria()) < 1 {
+		return t.List()
+	}
+    orderBy, err := t.BuildOrderBy()
+    sqlWhere, parameters, err := t.BuildByCriteria()
+    if err != nil {
+        return nil, errors.Wrap(err, "failed to select {{ .Struct.Table.Name }}")
+    }
+    var rs []{{ .Struct.Name }}
+    rows, err := t.db.NamedQuery(`SELECT `+t.BuildSqlSelect()+`{{ createFrom .Struct }} WHERE `+strings.Join(sqlWhere," AND ")+orderBy+t.BuildLimitOffset(), parameters)
+	if err != nil {
+        return nil, errors.Wrap(err, "failed to select {{ .Struct.Table.Name }}")
+	}
+    defer rows.Close()
+	for rows.Next() {
+        r := {{ .Struct.Name }}{}
+        err := rows.Scan({{ createSelectByPkScan .Struct }})
+        if err != nil {
+             return nil, errors.Wrap(err, "failed to select {{ .Struct.Table.Name }}")
+        }
+        rs = append(rs, r)
+    }
+
+	return rs, nil
+}
+
+// Count select count the {{ .Struct.Name }} from the database.
+func (t *{{ .Struct.Name }}Builder) Count() (r int64, err error) {
+    err = t.db.QueryRow(`{{ createCount .Struct }} `).Scan(&r)
+	return
+}
+
+// CountByCriteria select count the {{ .Struct.Name }} from the database.
+func (t *{{ .Struct.Name }}Builder) CountByCriteria() (r int64,err error) {
+    if  t.GetCriteria() == nil || len(t.GetCriteria().GetCriteria()) < 1 {
+        return t.Count()
+    }
+
+    sqlWhere, parameters, err := t.BuildByCriteria()
+
+    if err != nil {
+        return r, errors.Wrap(err, "failed to count {{ .Struct.Table.Name }}")
+    }
+
+    rows, err := t.db.NamedQuery(`{{ createCount .Struct }} WHERE `+strings.Join(sqlWhere," AND "), parameters)
+    if err != nil {
+        return r, errors.Wrap(err, "failed to count {{ .Struct.Table.Name }}")
+    }
+    defer rows.Close()
+    for rows.Next() {
+        err := rows.Scan(&r)
+        if err != nil {
+            return r, errors.Wrap(err, "failed to count {{ .Struct.Table.Name }}")
+        }
+    }
+	return r, nil
+}
+
+// DeleteByCriteria select count the {{ .Struct.Name }} from the database.
+func (t *{{ .Struct.Name }}Builder) DeleteByCriteria() (r int64, err error) {
+    if  t.GetCriteria() == nil || len(t.GetCriteria().GetCriteria()) < 1 {
+        err = errors.New("criteria empty")
+        return r, errors.Wrap(err, "failed to delete {{ .Struct.Table.Name }}")
+    }
+
+    sqlWhere, parameters, err := t.BuildByCriteria()
+
+    if err != nil {
+        return r, errors.Wrap(err, "failed to delete {{ .Struct.Table.Name }}")
+    }
+
+    rows, err := t.db.NamedQuery(`{{ createDeleteSQL .Struct }} WHERE `+strings.Join(sqlWhere," AND ")+` RETURNING 1;`, parameters)
+    if err != nil {
+        return r, errors.Wrap(err, "failed to delete {{ .Struct.Table.Name }}")
+    }
+    defer rows.Close()
+
+    for rows.Next() {
+        r++
+    }
+	return r, nil
+}
+
+// BuildOrderBy build order by sql string
+func (t *{{ .Struct.Name }}Builder) BuildOrderBy() (orderBy string, err error) {
+    if t.GetOrder() == nil {
+        return
+    }
+
+     orderBy = " ORDER BY "
+
+    for i, order := range t.GetOrder() {
+        _, exist := t.columns[order.GetName()]
+
+        if !exist && order.GetName() != "" {
+            err = errors.New("order column not exist: " + order.GetName())
+        }
+        if i > 0 {
+            orderBy += ` , `
+        }
+        if order.GetName() != "" {
+            orderBy += order.GetName()
+            if order.IsDesc() {
+                orderBy += " DESC "
+            } else {
+                orderBy += " ASC "
+            }
+        }
+    }
+    return
+}
+
+// BuildByCriteria build Criteria to sql string where and parameters
+func (t *{{ .Struct.Name }}Builder) BuildByCriteria() (sqlWhere []string, parameters map[string]interface{}, err error) {
+    if t.GetCriteria() == nil {
+        return
+    }
+
+    for _, crit := range t.GetCriteria().GetCriteria() {
+        if _, exist := t.columns[crit.GetField()]; !exist {
+            err = errors.New("Criteria not exist: "+crit.GetName()+":"+crit.GetField())
+            break
+        }
+    }
+    if err != nil {
+        return
+    }
+    parameters = map[string]interface{}{}
+    for _, crit := range t.GetCriteria().GetCriteria() {
+        if crit.GetRaw() != "" {
+            sqlWhere = append(sqlWhere, crit.GetField()+crit.GetOperand()+crit.GetRaw())
+        } else {
+            sqlWhere = append(sqlWhere, crit.GetField()+crit.GetOperand()+":"+crit.GetName())
+        }
+        parameters[crit.GetName()] = crit.GetValue()
+    }
+
+    if len(t.GetParameters()) > 0 {
+        for param, value := range t.GetParameters() {
+            parameters[param] = value
+        }
+    }
+
+    return
+}
+
+// BuildSqlSelect build sql for select section merge t.Select and table colums
+func (t *{{ .Struct.Name }}Builder) BuildSqlSelect() (sqlSelect string) {
+    count := len(t.iColumn) - 1
+    for i := 0; i <= count; i++ {
+        name := t.iColumn[i]
+        if val, ok := t.Select[name]; ok && val != "" {
+            sqlSelect += val
+        } else {
+            sqlSelect += name
+        }
+        if i < count {
+            sqlSelect += ", "
+        }
+    }
+    return sqlSelect
+}
+
+// BuildLimitOffset build limit offset sql string
+func (t *{{ .Struct.Name }}Builder) BuildLimitOffset() (limitOffset string) {
+    if t.GetLimit() == nil {
+        return
+    }
+
+    if t.GetLimit().GetLimit() > 0 {
+        limitOffset += " LIMIT "+strconv.FormatInt(t.GetLimit().GetLimit(), 10)
+    }
+    if t.GetLimit().GetOffset() > 0 {
+        limitOffset += " OFFSET "+strconv.FormatInt(t.GetLimit().GetOffset(), 10)
+    }
+    return
+}
+
+// StructToMap map {{ .Struct.Name }} to map of parameters
+func (t *{{ .Struct.Name }}Builder) StructToMap(row *{{ .Struct.Name }}) map[string]interface{} {
+    parameters := map[string]interface{}{}
+    {{- range .Struct.Fields }}
+        parameters["{{ .Column.Name }}"] = row.{{ .Name }}
+    {{- end }}
+    return parameters
+}
+
+// BuildParameters merge mapped {{ .Struct.Name }} and additional parameters for named queue
+func (t *{{ .Struct.Name }}Builder) BuildParameters(row *{{ .Struct.Name }}) map[string]interface{}  {
+    res := map[string]interface{}{}
+
+    for k, v := range t.StructToMap(row) {
+        res[k] = v
+    }
+
+    for k, v := range t.GetParameters() {
+        res[k] = v
+    }
+
+    return res
+}
+
+// BuildFieldValue build field value for named sql
+func (t *{{ .Struct.Name }}Builder) BuildFieldValue(field string) string {
+    var str string
+    if val, ok := t.FieldModification[field]; ok && val != "" {
+        str = val
+    } else {
+        str = ":" + field
+    }
+
+    return str
+}

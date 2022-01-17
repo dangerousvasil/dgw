@@ -1,0 +1,117 @@
+
+// Criteria for query ByCriteria
+type Criteria struct {
+    Criteria []CriterionInterface
+}
+
+func NewCriteria()  *Criteria  {
+    return &Criteria{}
+}
+
+func (c *Criteria) GetCriteria() []CriterionInterface {
+    return c.Criteria
+}
+
+func (c *Criteria) AddCriterion(criterion *Criterion) *Criteria {
+    c.Criteria = append(c.Criteria, criterion)
+    return c
+}
+
+type Criterion struct {
+    Name    string
+    Field   string
+    Value   interface{}
+    Operand string
+    Raw     string
+}
+
+func NewCriterion(name, field, operand string, value interface{}) *Criterion {
+    c := Criterion{Name: name, Field: field, Operand: operand, Value: value}
+    return &c
+}
+
+func NewCriterionRaw(field, raw string) *Criterion {
+    c := Criterion{Field: field, Raw: raw, Operand: " "}
+    return &c
+}
+
+func (c *Criterion) GetName() string {
+    return c.Name
+}
+
+func (c *Criterion) GetField() string {
+    return c.Field
+}
+
+func (c *Criterion) GetOperand() string {
+    return c.Operand
+}
+
+func (c *Criterion) GetRaw() string {
+    return c.Raw
+}
+
+func (c *Criterion) SetRaw(raw string) *Criterion {
+    c.Raw = raw
+    return c
+}
+
+func (c *Criterion) GetValue() interface{} {
+    return c.Value
+}
+
+// OrderBy for List query
+type OrderBy struct {
+    Desc bool
+    Name string
+}
+
+func NewOrderBy() *OrderBy {
+    return &OrderBy{}
+}
+
+func (o *OrderBy) SetName(s string) *OrderBy {
+    o.Name = s
+    return o
+}
+
+func (o *OrderBy) SetDesc(b bool) *OrderBy {
+    o.Desc = b
+    return o
+}
+
+func (o *OrderBy) IsDesc() bool {
+    return o.Desc
+}
+
+func (o *OrderBy) GetName() string {
+    return o.Name
+}
+
+// LimitOffset for List query
+type LimitOffset struct {
+    Limit int64
+    Offset int64
+}
+
+func NewLimitOffset() *LimitOffset {
+    return &LimitOffset{}
+}
+
+func (l *LimitOffset) SetLimit(i int64) *LimitOffset {
+    l.Limit = i
+    return l
+}
+
+func (l *LimitOffset) SetOffset(i int64) *LimitOffset {
+    l.Offset = i
+    return l
+}
+
+func (l *LimitOffset) GetLimit() int64 {
+    return l.Limit
+}
+
+func (l *LimitOffset) GetOffset() int64 {
+    return l.Offset
+}

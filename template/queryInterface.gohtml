@@ -1,0 +1,34 @@
+
+// Queryer database/sql compatible query interface
+type Queryer interface {
+    Exec(string, ...interface{}) (sql.Result, error)
+    Query(string, ...interface{}) (*sql.Rows, error)
+    QueryRow(string, ...interface{}) *sql.Row
+    Select(interface{}, string, ...interface{}) error
+    NamedExec(string, interface{}) (sql.Result, error)
+    NamedQuery(string, interface{}) (*sqlx.Rows, error)
+}
+// Criteria for query ByCriteria
+type CriteriaInterface interface {
+    GetCriteria() []CriterionInterface
+}
+type CriterionInterface interface {
+    GetName() string
+    GetField() string
+    GetOperand() string
+    GetValue() interface{}
+    GetRaw() string
+}
+
+// OrderBy for List query
+type OrderByInterface interface {
+    IsDesc() bool
+    GetName() string
+}
+
+
+// LimitOffset for List query
+type LimitOffsetInterface interface {
+    GetLimit() int64
+    GetOffset() int64
+}
